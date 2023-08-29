@@ -14,6 +14,7 @@ class RetrievalOpenSearch:
                  corpus_chunk_size: int = 50000, timeout: int = 30, search_method: str = 'bm25',
                  pipeline_name: str = 'norm-pipeline', **kwargs):
         # model is class that provides encode_corpus() and encode_queries()
+        self.took_time = {}
         self.batch_size = batch_size
         # self.score_functions = {'cos_sim': cos_sim, 'dot': dot_score}
         # self.score_function_desc = {'cos_sim': "Cosine Similarity", 'dot': "Dot Product"}
@@ -280,6 +281,47 @@ class RetrievalOpenSearch:
                 }
             }
 
+        def get_body_bool(query_text):
+            return {
+                'size': result_size,
+                'query': {
+                    "bool": {
+                        "must": [
+                            {
+                                'neural': {
+                                    'passage_embedding': {
+                                        'query_text': query_text,
+                                        'model_id': model_id,
+                                        'k': top_k
+                                    }
+                                }
+                            },
+                            # {
+                            #    'multi_match': {
+                            #        'query': query_text,
+                            #        'type': 'best_fields',
+                            #        'fields': ['text_key', 'title_key'],
+                            #        "tie_breaker": 0.5
+                            #    }
+                            # }
+                            {
+                                'match': {
+                                    'title_key': {
+                                        'query': query_text
+                                    }
+                                }
+                            },
+                            {
+                                'match': {
+                                    'text_key': {
+                                        'query': query_text
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
         def get_body_neural(query_text):
             return {
                 'size': result_size,
@@ -298,12 +340,14 @@ class RetrievalOpenSearch:
             searches = {
                 'neural': get_body_neural,
                 'hybrid': get_body_hybrid,
+                'bool': get_body_bool
             }
             return searches[self.search_method](query_text)
 
         logger.info("Encoding Queries...")
         query_ids = list(queries.keys())
         self.results = {qid: {} for qid in query_ids}
+        self.took_time = {qid: {} for qid in query_ids}
         queries = [queries[qid] for qid in queries]
 
         logger.info("Sorting Corpus by document length (Longest first)...")
@@ -347,5 +391,6 @@ class RetrievalOpenSearch:
                 corp_id = hit['_id']
                 if corp_id != query_id:
                     self.results[query_id][corp_id] = hit['_score']
+            self.took_time[query_id] = int(query_responses[i]['took'])
 
-        return self.results
+        return self.results, self.took_time

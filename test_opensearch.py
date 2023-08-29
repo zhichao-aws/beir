@@ -85,7 +85,7 @@ def evaluate(corpus, endpoint, index, model_id, port, qrels, queries):
     #     print('--- end of results for ' + method)
 
     # for method in ['neural', 'hybrid']:
-    for method in ['hybrid']:
+    for method in ['hybrid', 'bool']:
         print('starting search method ' + method)
         os_retrival = RetrievalOpenSearch(endpoint, port,
                                           index_name=index,
@@ -96,8 +96,10 @@ def evaluate(corpus, endpoint, index, model_id, port, qrels, queries):
         top_k = max(model_k_values)
         result_size = max(bm25_k_values)
         # results = retriever.retrieve(corpus, queries)
-        results = os_retrival.search_vector(corpus, queries, top_k=top_k, result_size=result_size)
+        results, took_time = os_retrival.search_vector(corpus, queries, top_k=top_k, result_size=result_size)
         ndcg, _map, recall, precision = retriever.evaluate(qrels, results, k_values)
+        # print('Total time: ' + str(total_time))
+        retriever.evaluate_time(took_time)
         print('--- end of results for ' + method)
 
     # method = 'hybrid'

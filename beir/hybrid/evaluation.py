@@ -1,6 +1,7 @@
 import pytrec_eval
 import logging
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Any
+from math import floor
 
 logger = logging.getLogger(__name__)
 
@@ -73,3 +74,41 @@ class EvaluateRetrieval:
                 logging.info("{}: {:.4f}".format(k, eval[k]))
 
         return ndcg, _map, recall, precision
+
+    def _pxx(self, values: List[Any], p: float):
+        """Calculates the pXX statistics for a given list.
+
+        Args:
+            values: List of values.
+            p: Percentile (between 0 and 1).
+
+        Returns:
+            The corresponding pXX metric.
+        """
+        lowest_percentile = 1 / len(values)
+        highest_percentile = (len(values) - 1) / len(values)
+
+        # return -1 if p is out of range or if the list doesn't have enough elements
+        # to support the specified percentile
+        if p < 0 or p > 1:
+            return -1.0
+        elif p < lowest_percentile or p > highest_percentile:
+            if p == 1.0 and len(values) > 1:
+                return float(values[len(values) - 1])
+            return -1.0
+        else:
+            return float(values[floor(len(values) * p)])
+
+    def evaluate_time( self, took_time):
+
+        times = list(took_time.values())
+        times.sort()
+
+        p50 = self._pxx(times, 0.50)
+        print('p50: ' + str(p50))
+
+        p90 = self._pxx(times, 0.90)
+        print('p90: ' + str(p90))
+
+        p99 = self._pxx(times, 0.99)
+        print('p99: ' + str(p99))
