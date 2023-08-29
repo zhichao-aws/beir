@@ -1,6 +1,7 @@
 # from beir.retrieval.search.util import cos_sim, dot_score
 import logging
 import textwrap
+import random
 from typing import Dict, List
 from opensearchpy import OpenSearch, RequestsHttpConnection
 
@@ -369,8 +370,15 @@ class RetrievalOpenSearch:
                                         break_on_hyphens=False)
             return full_string if len(str_as_list) == 0 else str_as_list[0]
 
+        logger.info("Starting warmup queries")
+        for r in range(0, min(100, len(query_ids))):
+            q = random.choice(queries)
+            self.opensearch.search(index=index_name,
+                                   body=get_body_vector(get_doc_text(q)),
+                                   params={"search_pipeline": self.pipeline_name})
+        logger.info("Finished warmup queries")
+
         for i in range(0, len(query_ids)):
-            query_id = query_ids[i]
             q = queries[i]
 
             query_response = self.opensearch.search(index=index_name,

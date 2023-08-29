@@ -9,8 +9,8 @@ import pathlib, os, getopt, sys
 
 
 def main(argv):
-    opts, args = getopt.getopt(argv, "d:u:h:p:i:m:n:",
-                               ["dataset=", "dataset_url=", "os_host=", "os_port=", "os_index=", "os_model_id=", "num_of_runs="])
+    opts, args = getopt.getopt(argv, "d:u:h:p:i:m:n:o:",
+                               ["dataset=", "dataset_url=", "os_host=", "os_port=", "os_index=", "os_model_id=", "num_of_runs=", "operation="])
     dataset = ''
     url = ''
     endpoint = ''
@@ -18,6 +18,7 @@ def main(argv):
     index = ''
     model_id = ''
     num_of_runs = 2
+    operation = "evaluate"
     for opt, arg in opts:
         if opt in ("-d", "-dataset"):
             dataset = arg
@@ -33,11 +34,14 @@ def main(argv):
             model_id = arg
         elif opt in ("-n", "-num_of_runs"):
             num_of_runs = int(arg)
+        elif opt in ("-o", "-operation"):
+            operation = arg
+
 
     #### Just some code to print debug information to stdout
     logging.basicConfig(format='%(asctime)s - %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S',
-                        level=logging.WARN,
+                        level=logging.INFO,
                         handlers=[LoggingHandler()])
 
     #### /print debug information to stdout
@@ -53,9 +57,11 @@ def main(argv):
     #### Provide the data_path where scifact has been downloaded and unzipped
     corpus, queries, qrels = GenericDataLoader(data_folder=data_path).load(split="test")
 
-    #ingest_data(corpus, endpoint, index, port)
+    if operation == 'ingest' or operation == 'both':
+        ingest_data(corpus, endpoint, index, port)
 
-    evaluate(corpus, endpoint, index, model_id, port, qrels, queries, num_of_runs)
+    if operation == 'evaluate' or operation == 'both':
+        evaluate(corpus, endpoint, index, model_id, port, qrels, queries, num_of_runs)
 
 
 def ingest_data(corpus, endpoint, index, port):
@@ -87,8 +93,8 @@ def evaluate(corpus, endpoint, index, model_id, port, qrels, queries, num_of_run
     #     ndcg, _map, recall, precision = retriever.evaluate(qrels, results, k_values)
     #     print('--- end of results for ' + method)
 
-    # for method in ['neural', 'hybrid']:
-    for method in ['hybrid', 'bool']:
+    for method in ['neural', 'hybrid']:
+    # for method in ['hybrid', 'bool']:
         print('starting search method ' + method)
         os_retrival = RetrievalOpenSearch(endpoint, port,
                                           index_name=index,
@@ -103,7 +109,7 @@ def evaluate(corpus, endpoint, index, model_id, port, qrels, queries, num_of_run
         for run in range(0, num_of_runs) :
             results, took_time = os_retrival.search_vector(corpus, queries, top_k=top_k, result_size=result_size)
             all_experiments_took_time.append(took_time)
-            #ndcg, _map, recall, precision = retriever.evaluate(qrels, results, k_values)
+            ndcg, _map, recall, precision = retriever.evaluate(qrels, results, k_values)
         # print('Total time: ' + str(total_time))
         retriever.evaluate_time(all_experiments_took_time)
         print('--- end of results for ' + method)
