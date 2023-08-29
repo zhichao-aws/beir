@@ -99,16 +99,29 @@ class EvaluateRetrieval:
         else:
             return float(values[floor(len(values) * p)])
 
-    def evaluate_time( self, took_time):
+    def evaluate_time(self, took_time_all_measures):
+        p50 = 0
+        p90 = 0
+        p99 = 0
+        p100 = 0
 
-        times = list(took_time.values())
-        times.sort()
+        for took_time in took_time_all_measures:
+            times = list(took_time.values())
+            times.sort()
 
-        p50 = self._pxx(times, 0.50)
+            p50 += self._pxx(times, 0.50)
+            p90 += self._pxx(times, 0.90)
+            p99 += self._pxx(times, 0.99)
+            p100 += self._pxx(times, 1.0)
+
+        p50 = p50 / len(took_time_all_measures)
+        p90 = p90 / len(took_time_all_measures)
+        p99 = p99 / len(took_time_all_measures)
+        p100 = p100 / len(took_time_all_measures)
+
         print('p50: ' + str(p50))
-
-        p90 = self._pxx(times, 0.90)
         print('p90: ' + str(p90))
-
-        p99 = self._pxx(times, 0.99)
         print('p99: ' + str(p99))
+        print('p100: ' + str(p100))
+
+        return p50, p90, p99, p100
