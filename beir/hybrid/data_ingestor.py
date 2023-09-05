@@ -22,6 +22,7 @@ class OpenSearchDataIngestor:
         self.language = language
 
     def ingest(self, corpus: Dict[str, Dict[str, str]], index: str):
+        '''for i in range(0, 200, self.bulk_size):'''
         for i in range(0, len(corpus), self.bulk_size):
             key_list = itertools.islice(corpus.keys(), i, i + self.bulk_size)
 
@@ -31,11 +32,25 @@ class OpenSearchDataIngestor:
                 return full_string if len(str_as_list) == 0 else str_as_list[0]
                 # return ' '.join(full_string.split()[:500])
 
+            def cleanup(s):
+                '''cleaned = s.replace('"', '')
+                cleaned = cleaned.replace("\'", "")
+                return cleaned
+                '''
+                return s
+
+            def get_content(corpus_doc):
+                if 'title' in corpus_doc.keys():
+                    return {
+                        'passage_text': cleanup(get_doc_text((corpus_doc["title"] + ' ' + corpus_doc["text"]).strip())), 'text_key': cleanup(corpus_doc['text']), 'title_key': cleanup(corpus_doc['title'])}
+                else:
+                    return {'passage_text': cleanup(get_doc_text((corpus_doc["text"]).strip())), 'text_key': cleanup(corpus_doc['text'])}
+
             actions = []
             _ = [
                 actions.extend(
                     [{'index': {'_index': index, '_id': key_id}},
-                     {'passage_text': get_doc_text((corpus[key_id]["title"] + ' ' + corpus[key_id]["text"]).strip()), 'text_key': corpus[key_id]['text'], 'title_key': corpus[key_id]['title']}])
+                     get_content(corpus[key_id])])
                 for key_id in key_list
             ]
             # actions[1::2] = [{'passage_text': corpus[key_id]['text']} for key_id in key_list]
