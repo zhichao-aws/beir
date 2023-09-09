@@ -2,6 +2,7 @@ import pytrec_eval
 import logging
 from typing import List, Dict, Tuple, Any
 from math import floor
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -100,28 +101,19 @@ class EvaluateRetrieval:
             return float(values[floor(len(values) * p)])
 
     def evaluate_time(self, took_time_all_measures):
-        p50 = 0
-        p90 = 0
-        p99 = 0
-        p100 = 0
+        p50 = []
+        p90 = []
+        p99 = []
 
         for took_time in took_time_all_measures:
             times = list(took_time.values())
-            times.sort()
 
-            p50 += self._pxx(times, 0.50)
-            p90 += self._pxx(times, 0.90)
-            p99 += self._pxx(times, 0.99)
-            p100 += self._pxx(times, 1.0)
+            p50.append(np.percentile(np.array(times), 50))
+            p90.append(np.percentile(np.array(times), 90))
+            p99.append(np.percentile(np.array(times), 99))
 
-        p50 = p50 / len(took_time_all_measures)
-        p90 = p90 / len(took_time_all_measures)
-        p99 = p99 / len(took_time_all_measures)
-        p100 = p100 / len(took_time_all_measures)
+        print('p50: ' + str(np.average(p50)))
+        print('p90: ' + str(np.average(p90)))
+        print('p99: ' + str(np.average(p99)))
 
-        print('p50: ' + str(p50))
-        print('p90: ' + str(p90))
-        print('p99: ' + str(p99))
-        print('p100: ' + str(p100))
-
-        return p50, p90, p99, p100
+        return p50, p90, p99

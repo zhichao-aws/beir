@@ -9,8 +9,8 @@ import pathlib, os, getopt, sys
 
 
 def main(argv):
-    opts, args = getopt.getopt(argv, "d:u:h:p:i:m:n:o:",
-                               ["dataset=", "dataset_url=", "os_host=", "os_port=", "os_index=", "os_model_id=", "num_of_runs=", "operation="])
+    opts, args = getopt.getopt(argv, "d:u:h:p:i:m:n:o:l:",
+                               ["dataset=", "dataset_url=", "os_host=", "os_port=", "os_index=", "os_model_id=", "num_of_runs=", "operation=", "pipelines="])
     dataset = ''
     url = ''
     endpoint = ''
@@ -19,6 +19,7 @@ def main(argv):
     model_id = ''
     num_of_runs = 2
     operation = "evaluate"
+    pipelines = 'norm-pipeline'
     for opt, arg in opts:
         if opt in ("-d", "-dataset"):
             dataset = arg
@@ -36,6 +37,8 @@ def main(argv):
             num_of_runs = int(arg)
         elif opt in ("-o", "-operation"):
             operation = arg
+        elif opt in ("-l", "-pipelines"):
+            pipelines = arg
 
 
     #### Just some code to print debug information to stdout
@@ -61,14 +64,14 @@ def main(argv):
         ingest_data(corpus, endpoint, index, port)
 
     if operation == 'evaluate' or operation == 'both':
-        evaluate(corpus, endpoint, index, model_id, port, qrels, queries, num_of_runs)
+        evaluate(corpus, endpoint, index, model_id, port, qrels, queries, num_of_runs, pipelines)
 
 
 def ingest_data(corpus, endpoint, index, port):
     OpenSearchDataIngestor(endpoint, port).ingest(corpus, index=index)
 
 
-def evaluate(corpus, endpoint, index, model_id, port, qrels, queries, num_of_runs):
+def evaluate(corpus, endpoint, index, model_id, port, qrels, queries, num_of_runs, pipelines):
     # This k values are being used for BM25 search
     # bm25_k_values = [1, 3, 5, 10, 100, min(9999, len(corpus))]
     bm25_k_values = [1, 3, 5, 10, 100]
@@ -93,26 +96,28 @@ def evaluate(corpus, endpoint, index, model_id, port, qrels, queries, num_of_run
     #     ndcg, _map, recall, precision = retriever.evaluate(qrels, results, k_values)
     #     print('--- end of results for ' + method)
 
-    for method in ['neural', 'hybrid']:
-    # for method in ['hybrid', 'bool']:
-        print('starting search method ' + method)
-        os_retrival = RetrievalOpenSearch(endpoint, port,
-                                          index_name=index,
-                                          model_id=model_id,
-                                          search_method=method,
-                                          pipeline_name='norm-pipeline')
-        retriever = EvaluateRetrieval(os_retrival, model_k_values)  # or "cos_sim" for cosine similarity
-        top_k = max(model_k_values)
-        result_size = max(bm25_k_values)
-        # results = retriever.retrieve(corpus, queries)
-        all_experiments_took_time = []
-        for run in range(0, num_of_runs) :
-            results, took_time = os_retrival.search_vector(corpus, queries, top_k=top_k, result_size=result_size)
-            all_experiments_took_time.append(took_time)
-            ndcg, _map, recall, precision = retriever.evaluate(qrels, results, k_values)
-        # print('Total time: ' + str(total_time))
-        retriever.evaluate_time(all_experiments_took_time)
-        print('--- end of results for ' + method)
+    #for method in ['neural', 'hybrid']:
+    for method in ['hybrid']:
+    #for method in ['hybrid', 'bool']:
+        for pipeline in pipelines.split(','):
+            print('starting search method ' + method + " for pipeline " + pipeline)
+            os_retrival = RetrievalOpenSearch(endpoint, port,
+                                              index_name=index,
+                                              model_id=model_id,
+                                              search_method=method,
+                                              pipeline_name=pipeline)
+            retriever = EvaluateRetrieval(os_retrival, model_k_values)  # or "cos_sim" for cosine similarity
+            top_k = max(model_k_values)
+            result_size = max(bm25_k_values)
+            # results = retriever.retrieve(corpus, queries)
+            all_experiments_took_time = []
+            for run in range(0, num_of_runs) :
+                results, took_time = os_retrival.search_vector(corpus, queries, top_k=top_k, result_size=result_size)
+                all_experiments_took_time.append(took_time)
+                ndcg, _map, recall, precision = retriever.evaluate(qrels, results, k_values)
+            # print('Total time: ' + str(total_time))
+            retriever.evaluate_time(all_experiments_took_time)
+            print('--- end of results for ' + method + " and pipeline " + pipeline)
 
     # method = 'hybrid'
     # print('starting search method ' + method)
