@@ -9,8 +9,9 @@ import pathlib, os, getopt, sys
 
 
 def main(argv):
-    opts, args = getopt.getopt(argv, "d:u:h:p:i:m:n:o:l:",
-                               ["dataset=", "dataset_url=", "os_host=", "os_port=", "os_index=", "os_model_id=", "num_of_runs=", "operation=", "pipelines="])
+    opts, args = getopt.getopt(argv, "d:u:h:p:i:m:n:o:l:e:",
+                               ["dataset=", "dataset_url=", "os_host=", "os_port=", "os_index=", "os_model_id=",
+                                "num_of_runs=", "operation=", "pipelines=", "method="])
     dataset = ''
     url = ''
     endpoint = ''
@@ -20,6 +21,7 @@ def main(argv):
     num_of_runs = 2
     operation = "evaluate"
     pipelines = 'norm-pipeline'
+    mmethod = 'hybrid'
     for opt, arg in opts:
         if opt in ("-d", "-dataset"):
             dataset = arg
@@ -39,7 +41,8 @@ def main(argv):
             operation = arg
         elif opt in ("-l", "-pipelines"):
             pipelines = arg
-
+        elif opt in ("-e", "-method"):
+            mmethod = arg
 
     #### Just some code to print debug information to stdout
     logging.basicConfig(format='%(asctime)s - %(message)s',
@@ -64,14 +67,14 @@ def main(argv):
         ingest_data(corpus, endpoint, index, port)
 
     if operation == 'evaluate' or operation == 'both':
-        evaluate(corpus, endpoint, index, model_id, port, qrels, queries, num_of_runs, pipelines)
+        evaluate(corpus, endpoint, index, model_id, port, qrels, queries, num_of_runs, pipelines, mmethod)
 
 
 def ingest_data(corpus, endpoint, index, port):
     OpenSearchDataIngestor(endpoint, port).ingest(corpus, index=index)
 
 
-def evaluate(corpus, endpoint, index, model_id, port, qrels, queries, num_of_runs, pipelines):
+def evaluate(corpus, endpoint, index, model_id, port, qrels, queries, num_of_runs, pipelines, mmethod):
     # This k values are being used for BM25 search
     # bm25_k_values = [1, 3, 5, 10, 100, min(9999, len(corpus))]
     bm25_k_values = [1, 3, 5, 10, 100]
@@ -79,26 +82,29 @@ def evaluate(corpus, endpoint, index, model_id, port, qrels, queries, num_of_run
     model_k_values = [1, 3, 5, 10, 100]
     # this k values are being used for scoring
     k_values = [5, 10, 100]
+
+    mm = mmethod.split(',')
     # for method in ['bm25', 'neural', 'hybrid']:
     # for method in ['hybrid']:
     # for method in ['neural']:
 
-    # for method in ['bm25']:
-    #     print('starting search method ' + method)
-    #     os_retrival = RetrievalOpenSearch(endpoint, port,
-    #                                       index_name=index,
-    #                                       model_id=model_id,
-    #                                       search_method=method,
-    #                                       pipeline_name='norm-pipeline')
-    #     retriever = EvaluateRetrieval(os_retrival, bm25_k_values)
-    #     result_size = max(bm25_k_values)
-    #     results = os_retrival.search_bm25(corpus, queries, top_k=result_size)
-    #     ndcg, _map, recall, precision = retriever.evaluate(qrels, results, k_values)
-    #     print('--- end of results for ' + method)
+    if 'bm25' in mm:
+        method = 'bm25'
+        print('starting search method ' + method)
+        os_retrival = RetrievalOpenSearch(endpoint, port,
+                                          index_name=index,
+                                          model_id=model_id,
+                                          search_method=method,
+                                          pipeline_name=pipelines.split(',')[0])
+        retriever = EvaluateRetrieval(os_retrival, bm25_k_values)
+        result_size = max(bm25_k_values)
+        results = os_retrival.search_bm25(corpus, queries, top_k=result_size)
+        ndcg, _map, recall, precision = retriever.evaluate(qrels, results, k_values)
+        print('--- end of results for ' + method)
 
-    #for method in ['neural', 'hybrid']:
-    for method in ['hybrid']:
-    #for method in ['hybrid', 'bool']:
+    # for method in ['neural', 'hybrid']:
+    for method in get_vector_methods(mm):
+        # for method in ['hybrid', 'bool']:
         for pipeline in pipelines.split(','):
             print('starting search method ' + method + " for pipeline " + pipeline)
             os_retrival = RetrievalOpenSearch(endpoint, port,
@@ -111,7 +117,7 @@ def evaluate(corpus, endpoint, index, model_id, port, qrels, queries, num_of_run
             result_size = max(bm25_k_values)
             # results = retriever.retrieve(corpus, queries)
             all_experiments_took_time = []
-            for run in range(0, num_of_runs) :
+            for run in range(0, num_of_runs):
                 results, took_time = os_retrival.search_vector(corpus, queries, top_k=top_k, result_size=result_size)
                 all_experiments_took_time.append(took_time)
                 ndcg, _map, recall, precision = retriever.evaluate(qrels, results, k_values)
@@ -131,6 +137,17 @@ def evaluate(corpus, endpoint, index, model_id, port, qrels, queries, num_of_run
     # results = retriever.search(corpus, queries, top_k)
     # ndcg, _map, recall, precision = retriever.evaluate(qrels, results, k_values)
     # print('--- end of results for ' + method)
+
+
+def get_vector_methods(mm):
+    vector_methods = []
+    if 'neural' in mm:
+        vector_methods.append('neural')
+    if 'hybrid' in mm:
+        vector_methods.append('hybrid')
+    if 'bool' in mm:
+        vector_methods.append('bool')
+    return vector_methods
 
 
 if __name__ == "__main__":
