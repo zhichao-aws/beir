@@ -101,8 +101,7 @@ class RetrievalOpenSearch:
             q = queries[i]
 
             query_response = self.opensearch.search(index=index_name,
-                                                    body=get_body(top_k, get_doc_text(q)),
-                                                    params={"search_pipeline": self.pipeline_name})
+                                                    body=get_body(top_k, get_doc_text(q)))
 
             query_responses.append(query_response)
             if i % 50 == 0:
@@ -381,9 +380,12 @@ class RetrievalOpenSearch:
         for i in range(0, len(query_ids)):
             q = queries[i]
 
+            search_params = {}
+            if self.search_method == 'hybrid':
+                search_params["search_pipeline"] = self.pipeline_name
             query_response = self.opensearch.search(index=index_name,
                                                     body=get_body_vector(get_doc_text(q)),
-                                                    params={"search_pipeline": self.pipeline_name})
+                                                    params=search_params)
 
             query_responses.append(query_response)
             if i % 50 == 0:
